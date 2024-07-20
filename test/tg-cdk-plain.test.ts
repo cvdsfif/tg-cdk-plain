@@ -1,17 +1,63 @@
-// import * as cdk from 'aws-cdk-lib';
-// import { Template } from 'aws-cdk-lib/assertions';
-// import * as TgCdkPlain from '../lib/tg-cdk-plain-stack';
+import { App } from "aws-cdk-lib"
+import { TgCdkPlainStack } from "../lib/tg-cdk-plain-stack"
+import { Match, Template } from "aws-cdk-lib/assertions";
 
-// example test. To run these tests, uncomment this file along with the
-// example resource in lib/tg-cdk-plain-stack.ts
-test('SQS Queue Created', () => {
-//   const app = new cdk.App();
-//     // WHEN
-//   const stack = new TgCdkPlain.TgCdkPlainStack(app, 'MyTestStack');
-//     // THEN
-//   const template = Template.fromStack(stack);
+test('Should create a Secret, a Lambda function and a connected HTTP API', () => {
+    // GIVEN a test CDK app
+    const app = new App()
 
-//   template.hasResourceProperties('AWS::SQS::Queue', {
-//     VisibilityTimeout: 300
-//   });
-});
+    // WHEN creating a test stack
+    const stack = new TgCdkPlainStack(app, 'MyTestStack');
+    const template = Template.fromStack(stack)
+
+    // THEN there is a Secret
+    template.hasResourceProperties('AWS::SecretsManager::Secret', {
+        Description: Match.stringLikeRegexp("Telegram")
+    })
+
+    // AND we have a Lambda Layer with some shared code
+    template.hasResourceProperties("AWS::Lambda::LayerVersion",
+        Match.objectLike({
+            Content: { S3Bucket: Match.anyValue() }
+        })
+    )
+
+    // AND a Lambda function
+    template.hasResourceProperties('AWS::Lambda::Function', {
+        Environment: {
+            Variables: {
+                TELEGRAF_SECRET_ARN: Match.anyValue()
+            }
+        },
+        Layers: Match.anyValue()
+    })
+
+    // AND an HTTP API
+    template.hasResourceProperties('AWS::ApiGatewayV2::Api', {
+        Name: "TelegramApi",
+        // The API is configured with a CORS policy allowing all the origins
+        CorsConfiguration: {
+            AllowOrigins: ["*"],
+            AllowMethods: ["*"],
+            AllowHeaders: ["*"]
+        }
+    })
+
+    // AND there is a policy allowing the lambda to access the secret
+    template.hasResourceProperties('AWS::IAM::Policy', {
+        PolicyDocument:
+        {
+            Statement: [
+                {
+                    Effect: "Allow",
+                    Resource: { Ref: Match.stringLikeRegexp("TelegrafSecret") }
+                }
+            ]
+        }
+    })
+
+    // AND a Lambda integration for the API
+    template.hasResourceProperties('AWS::ApiGatewayV2::Integration', {
+        IntegrationType: 'AWS_PROXY'
+    })
+})

@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.616.0",
+    "telegraf": "^4.16.3"
+  }
+}
