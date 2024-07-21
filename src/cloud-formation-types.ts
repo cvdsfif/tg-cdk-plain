@@ -74,3 +74,24 @@ export interface CloudFormationCustomResourceFailedResponse extends CloudFormati
     Status: "FAILED";
     Reason: string;
 }
+
+const cdkResponse = (
+    status: ("SUCCESS" | "FAILED"),
+    result: string,
+    physicalResourceId: string,
+    event: CloudFormationCustomResourceEvent
+): CdkCustomResourceResponse => ({
+    Status: status,
+    PhysicalResourceId: physicalResourceId,
+    Data: { Result: result },
+    StackId: event.StackId,
+    RequestId: event.RequestId,
+    LogicalResourceId: event.LogicalResourceId
+})
+
+export const successResponse = (
+    response: string,
+    physicalResourceId: string,
+    event: CloudFormationCustomResourceEvent
+): CdkCustomResourceResponse => cdkResponse("SUCCESS", response, physicalResourceId, event)
+

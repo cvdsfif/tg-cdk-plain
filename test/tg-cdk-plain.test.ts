@@ -29,6 +29,7 @@ test('Should create a Secret, a Lambda function and a connected HTTP API', () =>
                 TELEGRAF_SECRET_ARN: Match.anyValue()
             }
         },
+        Handler: "index.proceed",
         Layers: Match.anyValue()
     })
 
@@ -50,14 +51,55 @@ test('Should create a Secret, a Lambda function and a connected HTTP API', () =>
             Statement: [
                 {
                     Effect: "Allow",
-                    Resource: { Ref: Match.stringLikeRegexp("TelegrafSecret") }
                 }
             ]
-        }
+        },
+        PolicyName: Match.stringLikeRegexp("ProceedFunction")
     })
 
     // AND a Lambda integration for the API
     template.hasResourceProperties('AWS::ApiGatewayV2::Integration', {
         IntegrationType: 'AWS_PROXY'
+    })
+
+    // AND there is an HTTP route set to the root of the gateway
+    template.hasResourceProperties('AWS::ApiGatewayV2::Route', {
+        RouteKey: 'POST /'
+    })
+
+    // AND the Lambda function setting up the Telegram bot
+    template.hasResourceProperties('AWS::Lambda::Function', {
+        Environment: {
+            Variables: {
+                TELEGRAF_SECRET_ARN: Match.anyValue(),
+                TELEGRAF_API_URL: Match.anyValue()
+            }
+        },
+        Handler: "index.handler",
+        Layers: Match.anyValue()
+    })
+
+    // AND there is a policy allowing the setup lambda to access the secret
+    template.hasResourceProperties('AWS::IAM::Policy', {
+        PolicyDocument:
+        {
+            Statement: [
+                {
+                    Effect: "Allow",
+                }
+            ]
+        },
+        PolicyName: Match.stringLikeRegexp("TelegrafSetup")
+    })
+
+    // AND there is a custom resource attached to the lambda
+    template.hasResource('Custom::TelegramBotSetup', {
+        DependsOn: Match.arrayWith([Match.stringLikeRegexp("TelegramApi")])
+    })
+
+    // AND there is resource provider function that is created automatically
+    // and ensures the CDK events management
+    template.hasResourceProperties('AWS::Lambda::Function', {
+        Description: Match.stringLikeRegexp("onEvent")
     })
 })
